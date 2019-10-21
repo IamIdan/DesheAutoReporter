@@ -1,4 +1,4 @@
-from tkinter import Tk, Button, Menu
+from tkinter import Tk, Button, Menu, Entry, Label
 from json import loads, dumps
 from threading import Thread
 from requests import post, get
@@ -72,16 +72,26 @@ class DateManager:
 
 class ViewManager:
     def __init__(self):
+        # self.network_manager = RequestManager()
+        self.logged_in = False
         self.tk_root_setup()
 
     def tk_root_setup(self):
         root = Tk()
-        root.title("WarZone Master Trader")
+        root.title("Deshe AutoReporter")
+        labels = list()
+        labels.append(Label(master=root, text="Username: "))
+        labels.append(Label(master=root, text="Password: "))
+        entries = list()
+        entries.append(Entry(master=root, text="Username", command=None))
+        entries.append(Entry(master=root, text="Password", show="*", command=None))
         buttons = list()
-        buttons.append(Button(master=root, text="Attempt Login", command=None))
+        buttons.append(Button(master=root, text="Login", command=lambda: self.login(buttons)))
         buttons.append(
-            Button(master=root, text="Submit Hours from Excel", command=None))
-        elements = buttons
+            Button(master=root, text="Submit Hours from Excel", command=None, state='disabled'))
+        for entry in entries:
+            entry.bind('<Return>', lambda event: self.login(buttons))
+        elements = labels + entries + buttons
         for element in elements:
             element.pack()
         menubar = Menu(master=root)
@@ -89,6 +99,14 @@ class ViewManager:
         menubar.add_command(label="Close Window", command=root.quit)
         root.after(200, lambda: self.geometry_setter(root))
         root.mainloop()
+
+    def login(self, buttons):
+        # self.network_manager(url const and username with password credentials.)
+        # if self.network_manager.is_logged_in:
+        #     button[1]['state'] = 'normal'
+        # else:
+        #     button[1]['state'] = 'disabled'
+        pass
 
     @staticmethod
     def geometry_setter(root):
