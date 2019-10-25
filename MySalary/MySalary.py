@@ -1,7 +1,4 @@
-from tkinter import Tk, Button, Menu
-from json import loads, dumps
-from threading import Thread
-from requests import post, get
+from tkinter import Tk, Button, Menu, Entry, Label, Checkbutton
 
 
 class ExcelAnalyzer:
@@ -28,18 +25,6 @@ class ExcelAnalyzer:
         pass
 
     def go_next_line(self):
-        pass
-
-
-class RequestManager:
-    def __init__(self, url, credentials):
-        self.url = url
-        self.credentials = credentials
-
-    def login(self):
-        pass
-
-    def pass_hours_for_date(self, data):
         pass
 
 
@@ -72,23 +57,64 @@ class DateManager:
 
 class ViewManager:
     def __init__(self):
+        # self.network_manager = SeleniumManager()
+        # self.dater = DateManager()
+        self.labels, self.entries, self.buttons = list(), list(), list()
         self.tk_root_setup()
 
     def tk_root_setup(self):
         root = Tk()
-        root.title("WarZone Master Trader")
-        buttons = list()
-        buttons.append(Button(master=root, text="Attempt Login", command=None))
-        buttons.append(
-            Button(master=root, text="Submit Hours from Excel", command=None))
-        elements = buttons
-        for element in elements:
-            element.pack()
+        root.title("Deshe AutoReporter")
+        self.labels.append(Label(master=root, text="Username: "))
+        self.labels.append(Label(master=root, text="Password: "))
+        for i in range(len(self.labels)):
+            self.labels[i].grid(row=i, column=0)
+        self.entries.append(Entry(master=root, text="Username", command=None))
+        self.entries.append(Entry(master=root, text="Password", show="*", command=None))
+        for i in range(len(self.entries)):
+            self.entries[i].grid(row=i, column=1)
+        self.buttons.append(Button(master=root, text="Login", command=self.login))
+        self.buttons.append(Checkbutton(master=root, text="Override existing data"))
+        self.buttons.append(
+            Button(master=root, text="Submit Hours from Excel", command=None, state='disabled'))
+        for entry in self.entries:
+            entry.bind('<Return>', self.login)
+        for i in range(len(self.buttons)):
+            self.buttons[i].grid(row=2, column=i)
         menubar = Menu(master=root)
         root.config(menu=menubar)
         menubar.add_command(label="Close Window", command=root.quit)
         root.after(200, lambda: self.geometry_setter(root))
         root.mainloop()
+
+    def state_setter(self):
+        if self.network_manager.is_logged_in:
+            self.buttons['submitexcelhours']['state'] = 'normal'
+            self.buttons['authentication']['text'] = 'logout'
+            for entry in self.entries:
+                entry['state']['state'] = 'disabled'
+        else:
+            self.buttons['submitexcelhours']['state'] = 'disabled'
+            self.buttons['authentication']['text'] = 'login'
+            for entry in self.entries:
+                entry['state']['state'] = 'normal'
+
+    def login(self, event=None):
+        # self.network_manager.login(url (const), credentials (username with password credentials))
+        # if self.network_manager.is_logged_in:
+        #     button[1]['state'] = 'normal'
+        # else:
+        #     button[1]['state'] = 'disabled'
+        pass
+
+    def set_hours(self):
+        # Example of date formats:
+        # start_date = datetime(2019, 9, 29, 8)
+        # end_date = datetime(2019, 9, 29, 12)
+        # dates = self.dater.get_all_days
+        # for date in dates:
+        #     self.network_manager.report_shift(date['start_date'], date['end_date'])
+        pass
 
     @staticmethod
     def geometry_setter(root):
