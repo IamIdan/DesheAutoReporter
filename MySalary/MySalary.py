@@ -1,55 +1,81 @@
-from threading import Thread
-from time import sleep
-from tkFileDialog import askopenfilename
-from tkMessageBox import showinfo
-
+from datetime import datetime
 from tkinter import Tk, Button, Menu, Entry, Label, Checkbutton, Toplevel
+from tkinter.filedialog import askopenfilename
+from tkinter.messagebox import showinfo
+
+from SeleniumRequestManger import SeleniumManager
+from selenium.common.exceptions import TimeoutException
+from xlrd import open_workbook
 
 
 class ExcelAnalyzer:
     def __init__(self, path):
-        self.path = path
+        self.sheet = open_workbook(path).sheet_by_index(0)
+        self.column = 1
 
     def same_date_next_line(self):
+        row = 11
         if self.next_day_exists():
-            pass
+            return self.sheet.cell_value(self.column, row) == self.sheet.cell_value(self.column + 1, row)
 
     def get_date(self):
-        pass
+        row = 1
+        return self.sheet.cell_value(self.column, row)
 
     def get_start_time(self):
-        pass
+        row = 9
+        return self.sheet.cell_value(self.column, row)
 
     def get_end_time(self):
-        pass
+        row = 8
+        return self.sheet.cell_value(self.column, row)
 
     def get_comments(self):
-        pass
+        row = 3
+        return self.sheet.cell_value(self.column, row)
 
     def next_day_exists(self):
-        pass
+        row = 14
+        if self.column != self.sheet.ncols:
+            return self.sheet.cell_value(self.column + 1, row)
+        else:
+            return False
 
     def go_next_line(self):
-        pass
+        self.column += 1
 
 
 class DateManager:
     def __init__(self, path_to_excel):
         self.excel_analyzer = ExcelAnalyzer(path_to_excel)
 
+    @staticmethod
+    def convert_hours_and_minutes_to_int(time):
+        time = time.split(':')
+        hours = time[0]
+        minutes = time[1]
+        return hours * 60 + minutes
+
     def get_day(self):
         date = self.excel_analyzer.get_date()
         comments = self.excel_analyzer.get_comments()
-        start_end_times = list()
         start_time = self.excel_analyzer.get_start_time()
         end_time = self.excel_analyzer.get_end_time()
-        start_end_times.append((start_time, end_time))
         while self.excel_analyzer.same_date_next_line():
             self.excel_analyzer.go_next_line()
-            start_time = self.excel_analyzer.get_start_time()
-            end_time = self.excel_analyzer.get_end_time()
-            start_end_times.append((start_time, end_time))
-        return {'date': date, 'comments': comments, 'start_end_times': start_end_times}
+            new_start_time = self.excel_analyzer.get_start_time()
+            if self.convert_hours_and_minutes_to_int(new_start_time) < self.convert_hours_and_minutes_to_int(
+                    start_time):
+                start_time = new_start_time
+            new_end_time = self.excel_analyzer.get_end_time()
+            if self.convert_hours_and_minutes_to_int(new_end_time) > self.convert_hours_and_minutes_to_int(end_time):
+                end_time = new_end_time
+        year, month, day = date.split(' ')[0].split('/')
+        hour, minute = start_time.split(':')
+        start_time = datetime(int(year), int(month), int(day), int(hour), int(minute))
+        hour, minute = end_time.split(':')
+        end_time = datetime(int(year), int(month), int(day), int(hour), int(minute))
+        return {'start_time': start_time, 'end_time': end_time, 'comments': comments}
 
     def get_all_days(self):
         days = list()
@@ -62,11 +88,10 @@ class DateManager:
 
 class ViewManager:
     def __init__(self):
-        # self.network_manager = SeleniumManager()
-        # self.dater = DateManager()
+        self.network_manager = None
         self.running = True
-        self.labels, self.entries, self.buttons, self.threads = dict(), dict(), dict(), dict()
-        self.path_to_excel = ''
+        self.is_logged_in = False
+        self.labels, self.entries, self.buttons = dict(), dict(), dict()
         self.root = Tk()
         self.tk_root_setup()
 
@@ -80,7 +105,7 @@ class ViewManager:
         self.buttons.update({'override_data': Checkbutton(master=self.root, text="Override existing data")})
         self.buttons.update(
             {'submit_excel_hours': Button(master=self.root, text="Submit Hours from Excel",
-                                          command=self.set_hours_from_excel, state='disabled')})
+                                          command=self.set_hours_from_excel, state='normal')})
         row = 0
         for key in self.labels:
             self.labels[key].grid(row=row, column=0)
@@ -99,8 +124,6 @@ class ViewManager:
         menu_bar.add_command(label="Close Window", command=self.close_app)
         menu_bar.add_command(label="Help!", command=self.help_user)
         self.root.after(200, self.geometry_setter)
-        self.threads.update({'updater': Thread(target=self.updater)})
-        self.threads['updater'].start()
         self.root.mainloop()
 
     def help_user(self):
@@ -134,23 +157,17 @@ class ViewManager:
         self.root.quit()
         showinfo('Quitting', 'Goodbye!')
 
-    def updater(self):
-        while self.running:
-            try:
-                sleep(1)
-                if False:
-                    # if self.network_manager.is_logged_in:
-                    self.update_when_need(self.buttons['submit_excel_hours'], 'state', 'normal')
-                    self.update_when_need(self.buttons['authentication'], 'text', 'logout')
-                    for key in self.entries:
-                        self.update_when_need(self.entries[key], 'state', 'disabled')
-                else:
-                    self.update_when_need(self.buttons['submit_excel_hours'], 'state', 'normal')
-                    self.update_when_need(self.buttons['authentication'], 'text', 'login')
-                    for key in self.entries:
-                        self.update_when_need(self.entries[key], 'state', 'normal')
-            except Exception:
-                pass
+    def state_changer(self):
+        if self.is_logged_in:
+            self.update_when_need(self.buttons['submit_excel_hours'], 'state', 'normal')
+            self.update_when_need(self.buttons['authentication'], 'text', 'logout')
+            for key in self.entries:
+                self.update_when_need(self.entries[key], 'state', 'disabled')
+        else:
+            self.update_when_need(self.buttons['submit_excel_hours'], 'state', 'disabled')
+            self.update_when_need(self.buttons['authentication'], 'text', 'login')
+            for key in self.entries:
+                self.update_when_need(self.entries[key], 'state', 'normal')
 
     @staticmethod
     def update_when_need(element, field_to_change, variable):
@@ -158,27 +175,36 @@ class ViewManager:
             element[field_to_change] = variable
 
     def login(self, event=None):
-        # if self.network_manager.is_logged_in:
-        #     self.network_manager.login(credentials (username with password credentials))
-        # else:
-        #     self.network_manager.logout()
-        pass
+        try:
+            if not self.is_logged_in:
+                self.network_manager = SeleniumManager(username=self.entries['username'],
+                                                       password=self.entries['password'])
+                self.is_logged_in = True
+            else:
+                self.network_manager = None
+                self.is_logged_in = False
+            self.state_changer()
+        except TimeoutException as ex:
+            showinfo('Timeout', 'Error ' + str(ex))
 
-    def set_hours_from_excel(self):
-        self.path_to_excel = askopenfilename(title="Select your Excel file for import",
-                                             filetypes=(("CSV Files", "*.csv"),))
-        if self.path_to_excel:
-            pass
-            # Example of date formats:
-            # start_date = datetime(2019, 9, 29, 8)
-            # end_date = datetime(2019, 9, 29, 12)
-            # dates = self.dater.get_all_days
-            # for date in dates:
-            #     self.network_manager.report_shift(date['start_date'], date['end_date'])
-            showinfo('Submitted', 'Hours succesfully passed!')
+    @staticmethod
+    def set_hours_from_excel():
+        path_to_excel = askopenfilename(title="Select your Excel file for import",
+                                        filetypes=(("Excel Files", ".xlsx"),))
+        if path_to_excel:
+            try:
+                # Example of date formats:
+                # start_date = datetime(2019, 9, 29, 8)
+                # end_date = datetime(2019, 9, 29, 12)
+                dates = DateManager(path_to_excel).get_all_days()
+                for date in dates:
+                    pass
+                    # self.network_manager.report_shift(date['start_date'], date['end_date'], date['comments'])
+                showinfo('Submitted', 'Hours succesfully passed!')
+            except TimeoutException as ex:
+                showinfo('Timeout', 'Error ' + str(ex))
         else:
             showinfo('Cancelled', 'Process cancelled.')
-        pass
 
     def geometry_setter(self):
         self.root.minsize(width=self.root.winfo_width(), height=self.root.winfo_height())
