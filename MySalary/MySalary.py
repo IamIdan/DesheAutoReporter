@@ -105,7 +105,7 @@ class ViewManager:
         self.buttons.update({'override_data': Checkbutton(master=self.root, text="Override existing data")})
         self.buttons.update(
             {'submit_excel_hours': Button(master=self.root, text="Submit Hours from Excel",
-                                          command=self.set_hours_from_excel, state='normal')})
+                                          command=self.set_hours_from_excel, state='disabled')})
         row = 0
         for key in self.labels:
             self.labels[key].grid(row=row, column=0)
