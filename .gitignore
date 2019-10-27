@@ -1,2 +1,4 @@
+# Ignoring PyCharm files
+.idea/**
 *.iml
 *.xml
