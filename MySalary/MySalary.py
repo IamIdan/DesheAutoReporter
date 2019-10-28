@@ -1,123 +1,10 @@
-from datetime import datetime
-from tkinter import Tk, Button, Menu, Entry, Label, Checkbutton, Toplevel
+from tkinter import Tk, Button, Menu, Entry, Label, Checkbutton, Toplevel, BooleanVar
 from tkinter.filedialog import askopenfilename
 from tkinter.messagebox import showinfo
 
-from SeleniumRequestManger import SeleniumManager
+from DateManager import DateManager
+from NetworkManager import NetworkManager
 from selenium.common.exceptions import TimeoutException
-from xlrd import open_workbook
-
-
-class ExcelAnalyzer:
-    def __init__(self, path):
-        self.sheet = open_workbook(path).sheet_by_index(0)
-        self.column = 1
-
-    def same_date_next_line(self):
-        row = 11
-        if self.next_day_exists():
-            return self.sheet.cell_value(self.column, row) == self.sheet.cell_value(self.column + 1, row)
-
-    def get_date(self):
-        row = 1
-        return self.sheet.cell_value(self.column, row)
-
-    def get_start_time(self):
-        row = 9
-        return self.sheet.cell_value(self.column, row)
-
-    def get_end_time(self):
-        row = 8
-        return self.sheet.cell_value(self.column, row)
-
-    def get_comments(self):
-        row = 3
-        return self.sheet.cell_value(self.column, row)
-
-    def next_day_exists(self):
-        row = 14
-        if self.column != self.sheet.ncols:
-            return self.sheet.cell_value(self.column + 1, row)
-        else:
-            return False
-
-    def go_next_line(self):
-        self.column += 1
-
-
-class DateManager:
-    def __init__(self, path_to_excel):
-        self.excel_analyzer = ExcelAnalyzer(path_to_excel)
-
-    @staticmethod
-    def convert_hours_and_minutes_to_int(time):
-        time = time.split(':')
-        hours = time[0]
-        minutes = time[1]
-        return hours * 60 + minutes
-
-    def get_day(self):
-        date = self.excel_analyzer.get_date()
-        comments = self.excel_analyzer.get_comments()
-        start_time = self.excel_analyzer.get_start_time()
-        end_time = self.excel_analyzer.get_end_time()
-        while self.excel_analyzer.same_date_next_line():
-            self.excel_analyzer.go_next_line()
-            new_start_time = self.excel_analyzer.get_start_time()
-            if new_start_time.strip():
-                if self.convert_hours_and_minutes_to_int(new_start_time) < self.convert_hours_and_minutes_to_int(
-                        start_time):
-                    start_time = new_start_time
-            new_end_time = self.excel_analyzer.get_end_time()
-            if new_end_time.strip():
-                if self.convert_hours_and_minutes_to_int(new_end_time) > self.convert_hours_and_minutes_to_int(
-                        end_time):
-                    end_time = new_end_time
-        year, month, day = date.split(' ')[0].split('/')
-        hour, minute = start_time.split(':')
-        start_time = datetime(int(year), int(month), int(day), int(hour), int(minute))
-        hour, minute = end_time.split(':')
-        end_time = datetime(int(year), int(month), int(day), int(hour), int(minute))
-        return {'start_time': start_time, 'end_time': end_time, 'comments': comments}
-
-    def get_all_days(self):
-        days = list()
-        days.append(self.get_day())
-        while self.excel_analyzer.next_day_exists():
-            self.excel_analyzer.go_next_line()
-            days.append(self.get_day())
-        return days
-
-
-class NetworkManager:
-    def __init__(self, state_changer):
-        self.selenium_manager = None
-        self.is_logged_in = False
-        self.state_changer = state_changer
-
-    def login(self, entries, event=None):
-        try:
-            if not self.is_logged_in:
-                self.selenium_manager = SeleniumManager(username=entries['username'],
-                                                        password=entries['password'])
-                self.is_logged_in = True
-            else:
-                self.selenium_manager = None
-                self.is_logged_in = False
-            self.state_changer(self.is_logged_in)
-        except TimeoutException as ex:
-            self.order_failed('Timeout', 'Error ' + str(ex))
-
-    def report_shift(self, start_date, end_date, comments):
-        try:
-            self.selenium_manager.report_shift(start_date, end_date, comments)
-        except TimeoutException as ex:
-            self.order_failed('Timeout', 'Error ' + str(ex))
-
-    def order_failed(self, title, exception_string):
-        self.is_logged_in = False
-        self.state_changer(self.is_logged_in)
-        showinfo(title, exception_string)
 
 
 class ViewManager:
@@ -126,6 +13,8 @@ class ViewManager:
         self.running = True
         self.labels, self.entries, self.buttons = dict(), dict(), dict()
         self.root = Tk()
+        self.override_data = BooleanVar()
+        self.override_data.set(True)
         self.tk_root_setup()
 
     def tk_root_setup(self):
@@ -137,17 +26,23 @@ class ViewManager:
         self.buttons.update({'authentication': Button(master=self.root, text="Login",
                                                       command=lambda: self.network_manager.login(
                                                           entries=self.entries))})
-        self.buttons.update({'override_data': Checkbutton(master=self.root, text="Override existing data")})
+        self.buttons.update(
+            {'override_data': Checkbutton(master=self.root, text="Override existing data", variable=self.override_data,
+                                          onvalue=True, offvalue=False)})
         self.buttons.update(
             {'submit_excel_hours': Button(master=self.root, text="Submit Hours from Excel",
-                                          command=self.set_hours_from_excel, state='disabled')})
+                                          command=lambda: self.set_hours_from_excel(self.override_data.get()),
+                                          state='disabled')})
+        self.buttons.update({'get_salary': Button(master=self.root, text="Last Salary",
+                                                  command=self.network_manager.get_last_salary, state='disabled')})
         row = 0
         for key in self.labels:
             self.labels[key].grid(row=row, column=0)
             row += 1
         row = 0
         for key in self.entries:
-            self.entries[key].bind('<Return>', lambda event: self.network_manager.login(entries=self.entries, event=event))
+            self.entries[key].bind('<Return>',
+                                   lambda event: self.network_manager.login(entries=self.entries))
             self.entries[key].grid(row=row, column=1)
             row += 1
         column = 0
@@ -158,7 +53,7 @@ class ViewManager:
         self.root.config(menu=menu_bar)
         menu_bar.add_command(label="Close Window", command=self.close_app)
         menu_bar.add_command(label="Help!", command=self.help_user)
-        self.root.after(200, self.geometry_setter)
+        self.root.after(200, lambda: self.geometry_setter(self.root))
         self.root.mainloop()
 
     def help_user(self):
@@ -186,20 +81,22 @@ class ViewManager:
                             text="\nNote) It doesn't take breaks in count, only the earliest hour and the latest one."))
         for label in labels:
             label.pack()
+        self.geometry_setter(top, minimum_x=500, minimum_y=160)
 
     def close_app(self):
         self.running = False
         self.root.quit()
-        showinfo('Quitting', 'Goodbye!')
 
     def state_changer(self, is_logged_in):
         if is_logged_in:
             self.update_when_need(self.buttons['submit_excel_hours'], 'state', 'normal')
+            self.update_when_need(self.buttons['get_salary'], 'state', 'normal')
             self.update_when_need(self.buttons['authentication'], 'text', 'Logout')
             for key in self.entries:
                 self.update_when_need(self.entries[key], 'state', 'disabled')
         else:
-            self.update_when_need(self.buttons['submit_excel_hours'], 'state', 'disabled')
+            self.update_when_need(self.buttons['submit_excel_hours'], 'state', 'normal')
+            self.update_when_need(self.buttons['get_salary'], 'state', 'disabled')
             self.update_when_need(self.buttons['authentication'], 'text', 'Login')
             for key in self.entries:
                 self.update_when_need(self.entries[key], 'state', 'normal')
@@ -210,7 +107,7 @@ class ViewManager:
             element[field_to_change] = variable
 
     @staticmethod
-    def set_hours_from_excel():
+    def set_hours_from_excel(override_data):
         path_to_excel = askopenfilename(title="Select your Excel file for import",
                                         filetypes=(("Excel Files", ".xlsx"),))
         if path_to_excel:
@@ -221,22 +118,23 @@ class ViewManager:
                 dates = DateManager(path_to_excel).get_all_days()
                 for date in dates:
                     pass
-                    # self.network_manager.report_shift(date['start_date'], date['end_date'], date['comments'])
+                    # self.network_manager.report_shift(date['start_date'], date['end_date'], date['comments'], override_data=override_data)
                 showinfo('Submitted', 'Hours succesfully passed!')
             except TimeoutException as ex:
                 showinfo('Timeout', 'Error ' + str(ex))
         else:
             showinfo('Cancelled', 'Process cancelled.')
 
-    def geometry_setter(self):
-        self.root.minsize(width=self.root.winfo_width(), height=self.root.winfo_height())
-        x_width_pos = int((self.root.winfo_screenwidth() - self.root.winfo_width()) / 2)
+    @staticmethod
+    def geometry_setter(root, minimum_x=0, minimum_y=0):
+        root.minsize(width=root.winfo_width() + minimum_x, height=root.winfo_height() + minimum_y)
+        x_width_pos = int((root.winfo_screenwidth() - (root.winfo_width() + minimum_x)) / 2)
         y_height_pos = int(
-            (self.root.winfo_screenheight() - self.root.winfo_height()) / 2)
-        geometry_text = str(self.root.winfo_width()) + "x" + str(self.root.winfo_height()) + "+" + str(
+            (root.winfo_screenheight() - (root.winfo_height() + minimum_y)) / 2)
+        geometry_text = str(root.winfo_width() + minimum_x) + "x" + str(root.winfo_height() + minimum_y) + "+" + str(
             x_width_pos - 75) + "+" + str(y_height_pos) + ""
-        self.root.geometry(geometry_text)
-        self.root.update()
+        root.geometry(geometry_text)
+        root.update()
 
 
 if __name__ == '__main__':
