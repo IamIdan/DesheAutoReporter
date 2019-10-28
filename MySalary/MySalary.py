@@ -64,12 +64,15 @@ class DateManager:
         while self.excel_analyzer.same_date_next_line():
             self.excel_analyzer.go_next_line()
             new_start_time = self.excel_analyzer.get_start_time()
-            if self.convert_hours_and_minutes_to_int(new_start_time) < self.convert_hours_and_minutes_to_int(
-                    start_time):
-                start_time = new_start_time
+            if new_start_time.strip():
+                if self.convert_hours_and_minutes_to_int(new_start_time) < self.convert_hours_and_minutes_to_int(
+                        start_time):
+                    start_time = new_start_time
             new_end_time = self.excel_analyzer.get_end_time()
-            if self.convert_hours_and_minutes_to_int(new_end_time) > self.convert_hours_and_minutes_to_int(end_time):
-                end_time = new_end_time
+            if new_end_time.strip():
+                if self.convert_hours_and_minutes_to_int(new_end_time) > self.convert_hours_and_minutes_to_int(
+                        end_time):
+                    end_time = new_end_time
         year, month, day = date.split(' ')[0].split('/')
         hour, minute = start_time.split(':')
         start_time = datetime(int(year), int(month), int(day), int(hour), int(minute))
@@ -86,11 +89,41 @@ class DateManager:
         return days
 
 
+class NetworkManager:
+    def __init__(self, state_changer):
+        self.selenium_manager = None
+        self.is_logged_in = False
+        self.state_changer = state_changer
+
+    def login(self, entries, event=None):
+        try:
+            if not self.is_logged_in:
+                self.selenium_manager = SeleniumManager(username=entries['username'],
+                                                        password=entries['password'])
+                self.is_logged_in = True
+            else:
+                self.selenium_manager = None
+                self.is_logged_in = False
+            self.state_changer(self.is_logged_in)
+        except TimeoutException as ex:
+            self.order_failed('Timeout', 'Error ' + str(ex))
+
+    def report_shift(self, start_date, end_date, comments):
+        try:
+            self.selenium_manager.report_shift(start_date, end_date, comments)
+        except TimeoutException as ex:
+            self.order_failed('Timeout', 'Error ' + str(ex))
+
+    def order_failed(self, title, exception_string):
+        self.is_logged_in = False
+        self.state_changer(self.is_logged_in)
+        showinfo(title, exception_string)
+
+
 class ViewManager:
     def __init__(self):
-        self.network_manager = None
+        self.network_manager = NetworkManager(self.state_changer)
         self.running = True
-        self.is_logged_in = False
         self.labels, self.entries, self.buttons = dict(), dict(), dict()
         self.root = Tk()
         self.tk_root_setup()
@@ -101,7 +134,9 @@ class ViewManager:
         self.labels.update({'password': Label(master=self.root, text="Password: ")})
         self.entries.update({'username': Entry(master=self.root, text="Username", command=None)})
         self.entries.update({'password': Entry(master=self.root, text="Password", show="*", command=None)})
-        self.buttons.update({'authentication': Button(master=self.root, text="Login", command=self.login)})
+        self.buttons.update({'authentication': Button(master=self.root, text="Login",
+                                                      command=lambda: self.network_manager.login(
+                                                          entries=self.entries))})
         self.buttons.update({'override_data': Checkbutton(master=self.root, text="Override existing data")})
         self.buttons.update(
             {'submit_excel_hours': Button(master=self.root, text="Submit Hours from Excel",
@@ -112,7 +147,7 @@ class ViewManager:
             row += 1
         row = 0
         for key in self.entries:
-            self.entries[key].bind('<Return>', self.login)
+            self.entries[key].bind('<Return>', lambda event: self.network_manager.login(entries=self.entries, event=event))
             self.entries[key].grid(row=row, column=1)
             row += 1
         column = 0
@@ -157,15 +192,15 @@ class ViewManager:
         self.root.quit()
         showinfo('Quitting', 'Goodbye!')
 
-    def state_changer(self):
-        if self.is_logged_in:
+    def state_changer(self, is_logged_in):
+        if is_logged_in:
             self.update_when_need(self.buttons['submit_excel_hours'], 'state', 'normal')
-            self.update_when_need(self.buttons['authentication'], 'text', 'logout')
+            self.update_when_need(self.buttons['authentication'], 'text', 'Logout')
             for key in self.entries:
                 self.update_when_need(self.entries[key], 'state', 'disabled')
         else:
             self.update_when_need(self.buttons['submit_excel_hours'], 'state', 'disabled')
-            self.update_when_need(self.buttons['authentication'], 'text', 'login')
+            self.update_when_need(self.buttons['authentication'], 'text', 'Login')
             for key in self.entries:
                 self.update_when_need(self.entries[key], 'state', 'normal')
 
@@ -173,19 +208,6 @@ class ViewManager:
     def update_when_need(element, field_to_change, variable):
         if element[field_to_change] != variable:
             element[field_to_change] = variable
-
-    def login(self, event=None):
-        try:
-            if not self.is_logged_in:
-                self.network_manager = SeleniumManager(username=self.entries['username'],
-                                                       password=self.entries['password'])
-                self.is_logged_in = True
-            else:
-                self.network_manager = None
-                self.is_logged_in = False
-            self.state_changer()
-        except TimeoutException as ex:
-            showinfo('Timeout', 'Error ' + str(ex))
 
     @staticmethod
     def set_hours_from_excel():
