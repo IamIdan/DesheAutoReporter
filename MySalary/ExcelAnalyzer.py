@@ -40,6 +40,7 @@ class ExcelAnalyzer:
     def what_day(self):
         # row = 16
         raise ValueError("Unimplemented")
+        # TODO
         if self.sheet.nrows != 16:
             return 'work'
         else:

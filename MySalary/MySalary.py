@@ -1,10 +1,9 @@
-from tkinter import Tk, Button, Menu, Entry, Label, Checkbutton, Toplevel, BooleanVar
-from tkinter.filedialog import askopenfilename
-from tkinter.messagebox import showinfo
-
 from DateManager import DateManager
 from NetworkManager import NetworkManager
 from selenium.common.exceptions import TimeoutException
+from tkinter import Tk, Button, Menu, Entry, Label, Checkbutton, Toplevel, BooleanVar
+from tkinter.filedialog import askopenfilename
+from tkinter.messagebox import showinfo
 
 
 class ViewManager:
@@ -31,8 +30,7 @@ class ViewManager:
                                           onvalue=True, offvalue=False)})
         self.buttons.update(
             {'submit_excel_hours': Button(master=self.root, text="Submit Hours from Excel",
-                                          command=lambda: self.set_hours_from_excel(self.override_data.get()),
-                                          state='disabled')})
+                                          command=self.set_hours_from_excel, state='disabled')})
         self.buttons.update({'get_salary': Button(master=self.root, text="Last Salary",
                                                   command=self.network_manager.get_last_salary, state='disabled')})
         row = 0
@@ -106,8 +104,7 @@ class ViewManager:
         if element[field_to_change] != variable:
             element[field_to_change] = variable
 
-    @staticmethod
-    def set_hours_from_excel(override_data):
+    def set_hours_from_excel(self):
         path_to_excel = askopenfilename(title="Select your Excel file for import",
                                         filetypes=(("Excel Files", ".xlsx"),))
         if path_to_excel:
@@ -117,8 +114,15 @@ class ViewManager:
                 # end_date = datetime(2019, 9, 29, 12)
                 dates = DateManager(path_to_excel).get_all_days()
                 for date in dates:
-                    pass
-                    # self.network_manager.report_shift(date['start_date'], date['end_date'], date['comments'], override_data=override_data)
+                    if date.get('reason'):
+                        self.network_manager.enter_special_occasion(reason=date['reason'],
+                                                                    start_date=date['start_date'], hours=date['hours'],
+                                                                    minutes=date['minutes'],
+                                                                    elaboration_text=date['elaboration_text'])
+                    else:
+                        self.network_manager.report_shift(start_date=date['start_date'], end_date=date['end_date'],
+                                                          elaboration_text=date['elaboration_text'],
+                                                          override_data=override_data)
                 showinfo('Submitted', 'Hours succesfully passed!')
             except TimeoutException as ex:
                 showinfo('Timeout', 'Error ' + str(ex))

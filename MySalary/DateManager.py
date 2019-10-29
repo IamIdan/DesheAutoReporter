@@ -35,7 +35,19 @@ class DateManager:
         start_time = datetime(int(year), int(month), int(day), int(hour), int(minute))
         hour, minute = end_time.split(':')
         end_time = datetime(int(year), int(month), int(day), int(hour), int(minute))
-        return {'start_time': start_time, 'end_time': end_time, 'comments': comments}
+        elaboration_text = self.excel_analyzer.get_comments()
+        if not elaboration_text.strip():
+            elaboration_text = None
+        what_day = self.excel_analyzer.what_day()
+        if what_day != 'work':
+            time_left = self.convert_hours_and_minutes_to_int(end_time) - self.convert_hours_and_minutes_to_int(
+                start_time)
+            hours = int(time_left/60)
+            minutes = int(time_left%60)
+            start_date = None
+            return {'reason': what_day, 'start_date': start_date, 'hour': hours, 'minute': minutes,
+                    'elaboration_text': elaboration_text}
+        return {'start_time': start_time, 'end_time': end_time, 'elaboration_text': elaboration_text}
 
     def get_all_days(self):
         days = list()
