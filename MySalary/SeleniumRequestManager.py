@@ -37,8 +37,7 @@ class SeleniumManager:
             self.driver.close()
             raise TimeoutException("Timeout. Check your credentials or your internet connection")
 
-    def report_shift(self, start_date: datetime, end_date: datetime, elaboration_text=None, holiday=False,
-                     disease=False):
+    def report_shift(self, start_date: datetime, end_date: datetime, elaboration_text=None):
         """
         Report a shift into a logged in Deshe session.
         :param start_date: Datetime object
@@ -59,13 +58,7 @@ class SeleniumManager:
         if not self.can_report_in_current_month():
             raise ValueError(f'Cannot report hours in this month {start_date.month}')
 
-        # choose currect drop downs case.
-        if holiday:
-            self.choose_holiday()
-        elif disease:
-            self.choose_disease()
-        else:
-            self.choose_customer()
+        self.choose_customer()
 
         # report elaboration_text
         if elaboration_text:
@@ -94,7 +87,7 @@ class SeleniumManager:
 
         # check that month is not locked (we may report in that month)
         if not self.can_report_in_current_month():
-            raise ValueError(f'Cannot report hours in this month {start_date.month}')
+            raise ValueError(f'Cannot report hours in this month {date.month}')
 
         self.choose_customer(special_occasion=True)
         special_occasions = {
