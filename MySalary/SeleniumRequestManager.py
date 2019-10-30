@@ -247,7 +247,8 @@ class SeleniumManager:
         self.enter_text_into_input_field(hours_input_element, hour)
         self.enter_text_into_input_field(minutes_input_element, minutes)
 
-    def enter_text_into_input_field(self, element, text):
+    @staticmethod
+    def enter_text_into_input_field(element, text):
         """
         First clearing the element text, then entering it.
         :param element: WebDriver element
