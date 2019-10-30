@@ -1,9 +1,11 @@
-from DateManager import DateManager
-from NetworkManager import NetworkManager
-from selenium.common.exceptions import TimeoutException
+from threading import Thread
 from tkinter import Tk, Button, Menu, Entry, Label, Checkbutton, Toplevel, BooleanVar
 from tkinter.filedialog import askopenfilename
 from tkinter.messagebox import showinfo
+
+from DateManager import DateManager
+from NetworkManager import NetworkManager
+from selenium.common.exceptions import TimeoutException
 
 
 class ViewManager:
@@ -107,23 +109,28 @@ class ViewManager:
     def set_hours_from_excel(self):
         path_to_excel = askopenfilename(title="Select your Excel file for import",
                                         filetypes=(("Excel Files", ".xlsx"),))
+        threads = []
         if path_to_excel:
             try:
-                # Example of date formats:
-                # start_date = datetime(2019, 9, 29, 8)
-                # end_date = datetime(2019, 9, 29, 12)
                 dates = DateManager(path_to_excel).get_all_days()
                 for date in dates:
-                    if date.get('reason'):
-                        self.network_manager.enter_special_occasion(reason=date['reason'],
-                                                                    start_date=date['start_date'], hours=date['hours'],
-                                                                    minutes=date['minutes'],
-                                                                    elaboration_text=date['elaboration_text'])
+                    if date.get('dead'):
+                        showinfo('Invalid Credential', date)
+                    elif date.get('reason'):
+                        thr = Thread(target=self.network_manager.enter_special_occasion,
+                                     args=(date['reason'], date['start_date'], date['hours'], date['minutes'],
+                                           date['elaboration_text'], self.override_data))
+                        thr.start()
+                        threads.append(thr)
                     else:
-                        self.network_manager.report_shift(start_date=date['start_date'], end_date=date['end_date'],
-                                                          elaboration_text=date['elaboration_text'],
-                                                          override_data=override_data)
-                showinfo('Submitted', 'Hours succesfully passed!')
+                        thr = Thread(target=self.network_manager.report_shift,
+                                     args=(date['start_date'], date['end_date'], date['elaboration_text'],
+                                           self.override_data))
+                        thr.start()
+                        threads.append(thr)
+                for thr in threads:
+                    thr.join()
+                showinfo('Submitted', 'Hours successfully passed!')
             except TimeoutException as ex:
                 showinfo('Timeout', 'Error ' + str(ex))
         else:

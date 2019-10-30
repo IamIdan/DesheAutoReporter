@@ -4,47 +4,60 @@ from xlrd import open_workbook
 class ExcelAnalyzer:
     def __init__(self, path):
         self.sheet = open_workbook(path).sheet_by_index(0)
-        self.column = 1
+        self.row = 1
 
     def same_date_next_line(self):
-        row = 11
+        return self.current_date() == self.next_date()
+
+    def current_date(self):
+        column = 11
+        return self.sheet.cell_value(self.row, column)
+
+    def next_date(self):
+        column = 11
         if self.next_day_exists():
-            return self.sheet.cell_value(self.column, row) == self.sheet.cell_value(self.column + 1, row)
+            return self.sheet.cell_value(self.row + 1, column)
+        return False
 
     def get_date(self):
-        row = 1
-        return self.sheet.cell_value(self.column, row)
+        column = 1
+        return self.sheet.cell_value(self.row, column)
 
     def get_start_time(self):
-        row = 9
-        return self.sheet.cell_value(self.column, row)
+        column = 9
+        return self.sheet.cell_value(self.row, column)
 
     def get_end_time(self):
-        row = 8
-        return self.sheet.cell_value(self.column, row)
+        column = 8
+        return self.sheet.cell_value(self.row, column)
 
     def get_comments(self):
-        row = 3
-        return self.sheet.cell_value(self.column, row)
+        column = 3
+        return self.sheet.cell_value(self.row, column)
 
     def next_day_exists(self):
-        row = 14
-        if self.column != self.sheet.ncols:
-            return self.sheet.cell_value(self.column + 1, row)
+        column = 14
+        if self.row + 1 < self.sheet.nrows:
+            return self.sheet.cell_value(self.row + 1, column)
         else:
             return False
 
     def go_next_line(self):
-        self.column += 1
+        self.row += 1
 
     def what_day(self):
-        # row = 16
-        raise ValueError("Unimplemented")
-        # TODO
-        if self.sheet.nrows != 16:
-            return 'work'
+        column = 15
+        if self.sheet.ncols - 1 > 14:
+            reason = self.sheet.cell_value(self.row, column)
+            if reason.strip():
+                if reason == 'מחלה':
+                    return 'disease'
+                elif reason == 'חופשה':
+                    return 'holiday'
+            else:
+                return 'work'
         else:
-            return self.sheet.cell_value(self.column, row)
+            return 'work'
 
 
 if __name__ == '__main__':
