@@ -79,6 +79,7 @@ class SeleniumManager:
         :param date: datetime obejct, representing the date the occasion happened at.
         :param hours: number representing the number of hours to report
         :param minutes: number representing the numer of minutes to report.
+        :param elaboration_text: text which will be added in the פירוט section of the deshe hours report.
         :return:
         """
         self.navigate_to_month(date.month, date.year)
