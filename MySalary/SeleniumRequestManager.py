@@ -37,8 +37,7 @@ class SeleniumManager:
             self.driver.close()
             raise TimeoutException("Timeout. Check your credentials or your internet connection")
 
-    def report_shift(self, start_date: datetime, end_date: datetime, elaboration_text=None, holiday=False,
-                     disease=False):
+    def report_shift(self, start_date: datetime, end_date: datetime, elaboration_text=None):
         """
         Report a shift into a logged in Deshe session.
         :param start_date: Datetime object
@@ -59,13 +58,7 @@ class SeleniumManager:
         if not self.can_report_in_current_month():
             raise ValueError(f'Cannot report hours in this month {start_date.month}')
 
-        # choose currect drop downs case.
-        if holiday:
-            self.choose_holiday()
-        elif disease:
-            self.choose_disease()
-        else:
-            self.choose_customer()
+        self.choose_customer()
 
         # report elaboration_text
         if elaboration_text:
@@ -86,6 +79,7 @@ class SeleniumManager:
         :param date: datetime obejct, representing the date the occasion happened at.
         :param hours: number representing the number of hours to report
         :param minutes: number representing the numer of minutes to report.
+        :param elaboration_text: text which will be added in the פירוט section of the deshe hours report.
         :return:
         """
         self.navigate_to_month(date.month, date.year)
@@ -94,7 +88,7 @@ class SeleniumManager:
 
         # check that month is not locked (we may report in that month)
         if not self.can_report_in_current_month():
-            raise ValueError(f'Cannot report hours in this month {start_date.month}')
+            raise ValueError(f'Cannot report hours in this month {date.month}')
 
         self.choose_customer(special_occasion=True)
         special_occasions = {
@@ -253,7 +247,8 @@ class SeleniumManager:
         self.enter_text_into_input_field(hours_input_element, hour)
         self.enter_text_into_input_field(minutes_input_element, minutes)
 
-    def enter_text_into_input_field(self, element, text):
+    @staticmethod
+    def enter_text_into_input_field(element, text):
         """
         First clearing the element text, then entering it.
         :param element: WebDriver element
